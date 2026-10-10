@@ -1,141 +1,456 @@
+
 <!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Gestor de Calificaciones</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="auth.js"></script>
+<script src="/auth.js"></script>
+
 <style>
 body{font-family:Arial,sans-serif;background:#f5f7fb;margin:0;color:#172033}
 main{max-width:1100px;margin:auto;padding:24px}
 .card{background:white;border:1px solid #dfe4ec;border-radius:14px;padding:18px;margin-bottom:16px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
-input,select,textarea,button{box-sizing:border-box;width:100%;padding:11px;border:1px solid #ccd3df;border-radius:8px;font-size:15px}
-button{cursor:pointer;background:#172033;color:white}
+input,select,textarea,button{box-sizing:border-box;width:100%;padding:11px;border:1px solid #ccd3df;border-radius:8px;font-size:15px;margin-top:5px}
+button{cursor:pointer;background:#172033;color:white;margin-bottom:8px}
 .secondary{background:white;color:#172033}
 textarea{min-height:140px}
 table{width:100%;border-collapse:collapse;background:white}
 th,td{padding:9px;border-bottom:1px solid #e7ebf1;text-align:left;font-size:13px}
-.status{padding:10px;border-radius:8px;background:#eef3f9;margin-top:10px}
+.status{padding:10px;border-radius:8px;background:#eef3f9;margin-top:10px;white-space:pre-wrap}
+.help{font-size:13px;color:#4b5563}
 </style>
 </head>
+
 <body>
 <main>
+
 <section id="login" class="card">
-<h1>Gestor de Calificaciones</h1><p>Inicia sesión para continuar.</p>
-<div class="grid"><label>Correo<input id="email" type="email" autocomplete="username"></label><label>Contraseña<input id="password" type="password" autocomplete="current-password"></label></div>
-<button id="loginBtn">Iniciar sesión</button><div id="loginMsg" class="status"></div>
+<h1>Gestor de Calificaciones</h1>
+<p id="authIntro">Inicia sesión para continuar.</p>
+
+<div id="registerFields" style="display:none">
+<label>Nombre completo
+<input id="fullName" type="text" autocomplete="name" maxlength="120">
+</label>
+</div>
+
+<div class="grid">
+<label>Correo electrónico
+<input id="email" type="email" autocomplete="email">
+</label>
+
+<label>Contraseña
+<input id="password" type="password" minlength="8" autocomplete="current-password">
+</label>
+</div>
+
+<button id="loginBtn">Iniciar sesión</button>
+<button id="registerBtn" style="display:none">Crear cuenta</button>
+
+<button id="showRegister" class="secondary" type="button">
+Crear una cuenta nueva
+</button>
+
+<button id="showLogin" class="secondary" type="button" style="display:none">
+Ya tengo cuenta
+</button>
+
+<p class="help">Usa un correo válido y una contraseña de al menos 8 caracteres.</p>
+<div id="loginMsg" class="status" role="status" aria-live="polite"></div>
 </section>
+
 <section id="app" style="display:none">
-<h1>Gestor de Calificaciones</h1><p id="userInfo"></p><button id="logout" class="secondary" style="max-width:180px">Cerrar sesión</button>
+
+<h1>Gestor de Calificaciones</h1>
+<p id="userInfo"></p>
+
+<button id="logout" class="secondary" style="max-width:180px">
+Cerrar sesión
+</button>
+
 <p>Profesores · Coordinación · Administración</p>
 
 <section class="card">
 <h2>Configuración</h2>
 <div class="grid">
-<label>Año escolar<input id="year" value="2026-2027"></label>
-<label>Grado<select id="grade"></select></label>
-<label>Materia<select id="subject"></select></label>
-<label>Período<select id="period"></select></label>
-<label>Profesor<input id="teacher" placeholder="Nombre del profesor"></label>
+<label>Año escolar
+<input id="year" value="2026-2027">
+</label>
+
+<label>Grado
+<select id="grade"></select>
+</label>
+
+<label>Materia
+<select id="subject"></select>
+</label>
+
+<label>Período
+<select id="period"></select>
+</label>
+
+<label>Profesor
+<input id="teacher" placeholder="Nombre del profesor">
+</label>
 </div>
 </section>
 
 <section class="card">
 <h2>Importar desde Excel</h2>
-<p>Copia las filas desde Excel y pégalas aquí. Formato: <b>Nombre | Valor 1 | Valor 2 | Valor 3</b>.</p>
+
+<p>Copia las filas desde Excel y pégalas aquí. Formato: Nombre, Valor 1, Valor 2, Valor 3.</p>
+
 <textarea id="paste" placeholder="Juan Pérez&#9;80&#9;85&#9;90&#10;María López&#9;75&#9;82&#9;88"></textarea>
+
 <div class="grid">
 <button id="process">Procesar y calcular</button>
-<button class="secondary" id="download">Descargar Excel (CSV)</button>
+<button class="secondary" id="download">Descargar resultados CSV</button>
 </div>
+
 <div id="message" class="status"></div>
 </section>
 
 <section class="card">
 <h2>Resultados</h2>
-<div style="overflow:auto"><table><thead><tr>
-<th>Estudiante</th><th>Grado</th><th>Materia</th><th>Período</th><th>Valores originales</th><th>B</th><th>4 valores</th><th>Promedio final</th>
-</tr></thead><tbody id="results"></tbody></table></div>
+
+<div style="overflow:auto">
+<table>
+<thead>
+<tr>
+<th>Estudiante</th>
+<th>Grado</th>
+<th>Materia</th>
+<th>Período</th>
+<th>Valores originales</th>
+<th>B</th>
+<th>4 valores</th>
+<th>Promedio final</th>
+</tr>
+</thead>
+<tbody id="results"></tbody>
+</table>
+</div>
 </section>
+
 </section>
 </main>
 
 <script>
-const API = window.API_URL || "http://localhost:10000";
-let config = {grades:[],subjects:[],settings:null};
+const API = window.API_URL || window.location.origin;
+
+let config = {
+  grades: [],
+  subjects: [],
+  settings: null
+};
+
 let rows = [];
 
 const $ = id => document.getElementById(id);
 
-async function loadConfig(){
-  try{
-    const r = await apiFetch(API+"/api/config");
+function setAuthMode(mode) {
+  const registering = mode === "register";
+
+  $("registerFields").style.display = registering ? "block" : "none";
+  $("loginBtn").style.display = registering ? "none" : "block";
+  $("registerBtn").style.display = registering ? "block" : "none";
+  $("showRegister").style.display = registering ? "none" : "block";
+  $("showLogin").style.display = registering ? "block" : "none";
+
+  $("authIntro").textContent = registering
+    ? "Crea una cuenta para solicitar acceso al Gestor."
+    : "Inicia sesión para continuar.";
+
+  $("password").autocomplete = registering ? "new-password" : "current-password";
+  $("loginMsg").textContent = "";
+}
+
+$("showRegister").onclick = () => setAuthMode("register");
+$("showLogin").onclick = () => setAuthMode("login");
+
+async function loadConfig() {
+  try {
+    const r = await apiFetch(API + "/api/config");
+
+    if (!r.ok) {
+      throw new Error("No se pudo cargar la configuración.");
+    }
+
     config = await r.json();
-    $("grade").innerHTML=config.grades.map(g=>`<option value="${g.id}" data-name="${g.name}">${g.name}</option>`).join("");
-    $("subject").innerHTML=config.subjects.map(s=>`<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join("");
+
+    $("grade").innerHTML = (config.grades || []).map(g =>
+      `<option value="${esc(g.id)}" data-name="${esc(g.name)}">${esc(g.name)}</option>`
+    ).join("");
+
+    $("subject").innerHTML = (config.subjects || []).map(s =>
+      `<option value="${esc(s.id)}" data-name="${esc(s.name)}">${esc(s.name)}</option>`
+    ).join("");
+
     updatePeriods();
-  }catch(e){
-    $("message").textContent="No se pudo conectar con el backend. Revisa la URL de API.";
+  } catch (e) {
+    $("message").textContent =
+      "No se pudo conectar con el backend. Revisa Render.";
   }
 }
-function updatePeriods(){
-  const count=Number(config.settings?.period_count||3);
-  $("period").innerHTML=Array.from({length:count},(_,i)=>`<option value="${i+1}">Período ${i+1}</option>`).join("");
+
+function updatePeriods() {
+  const count = Number(config.settings?.period_count || 3);
+
+  $("period").innerHTML = Array.from(
+    { length: count },
+    (_, i) => `<option value="${i + 1}">Período ${i + 1}</option>`
+  ).join("");
 }
-function calculate(vals){
-  const v=vals.map(Number).filter(Number.isFinite);
-  if(!v.length) return null;
-  const b=v.reduce((a,x)=>a+x,0)/v.length;
-  let n=[b-6,b-2,b+3,b+5];
-  n[3]+= (b-n.reduce((a,x)=>a+x,0)/4)*4;
-  n=n.map(x=>Math.max(0,Math.min(100,Number(x.toFixed(4)))));
-  return {b, n, avg:n.reduce((a,x)=>a+x,0)/4};
+
+function calculate(vals) {
+  const v = vals.map(Number).filter(Number.isFinite);
+
+  if (!v.length) return null;
+
+  const b = v.reduce((a, x) => a + x, 0) / v.length;
+
+  let n = [b - 6, b - 2, b + 3, b + 5];
+
+  n[3] += (b - n.reduce((a, x) => a + x, 0) / 4) * 4;
+
+  n = n.map(x =>
+    Math.max(0, Math.min(100, Number(x.toFixed(4))))
+  );
+
+  return {
+    b,
+    n,
+    avg: n.reduce((a, x) => a + x, 0) / 4
+  };
 }
-function render(){
-  $("results").innerHTML=rows.map(r=>`<tr>
-<td>${esc(r.name)}</td><td>${esc(r.grade)}</td><td>${esc(r.subject)}</td><td>${r.period}</td>
-<td>${r.source.join(" / ")}</td><td>${r.calc.b.toFixed(2)}</td>
-<td>${r.calc.n.map(x=>x.toFixed(2)).join(" / ")}</td><td>${r.calc.avg.toFixed(2)}</td>
-</tr>`).join("");
+
+function render() {
+  $("results").innerHTML = rows.map(r => `
+    <tr>
+      <td>${esc(r.name)}</td>
+      <td>${esc(r.grade)}</td>
+      <td>${esc(r.subject)}</td>
+      <td>${esc(r.period)}</td>
+      <td>${r.source.join(" / ")}</td>
+      <td>${r.calc.b.toFixed(2)}</td>
+      <td>${r.calc.n.map(x => x.toFixed(2)).join(" / ")}</td>
+      <td>${r.calc.avg.toFixed(2)}</td>
+    </tr>
+  `).join("");
 }
-$("process").onclick=()=>{
-  const lines=$("paste").value.trim().split(/\r?\n/).filter(Boolean);
-  const gradeOpt=$("grade").selectedOptions[0], subjectOpt=$("subject").selectedOptions[0];
-  rows=[];
-  for(const line of lines){
-    const c=line.split(/\t|;/).map(x=>x.trim());
-    if(c.length<2) continue;
-    const name=c[0], vals=c.slice(1).map(Number).filter(Number.isFinite);
-    const calc=calculate(vals);
-    if(calc) rows.push({name,grade:gradeOpt?.dataset.name||"",subject:subjectOpt?.dataset.name||"",period:$("period").value,source:vals,calc});
+
+$("process").onclick = () => {
+  const lines = $("paste").value.trim().split(/\r?\n/).filter(Boolean);
+
+  const gradeOpt = $("grade").selectedOptions[0];
+  const subjectOpt = $("subject").selectedOptions[0];
+
+  rows = [];
+
+  for (const line of lines) {
+    const c = line.split(/\t|;/).map(x => x.trim());
+
+    if (c.length < 2) continue;
+
+    const name = c[0];
+    const vals = c.slice(1).map(Number).filter(Number.isFinite);
+    const calc = calculate(vals);
+
+    if (calc) {
+      rows.push({
+        name,
+        grade: gradeOpt?.dataset.name || "",
+        subject: subjectOpt?.dataset.name || "",
+        period: $("period").value,
+        source: vals,
+        calc
+      });
+    }
   }
+
   render();
-  $("message").textContent=`${rows.length} estudiante(s) procesado(s).`;
+  $("message").textContent = `${rows.length} estudiante(s) procesado(s).`;
 };
-$("download").onclick=()=>{
-  if(!rows.length){$("message").textContent="Primero procesa los datos.";return;}
-  const head=["Estudiante","Grado","Materia","Período","Valores originales","Promedio B","Número 1","Número 2","Número 3","Número 4","Promedio final"];
-  const lines=[head,...rows.map(r=>[r.name,r.grade,r.subject,r.period,r.source.join(" / "),r.calc.b.toFixed(2),...r.calc.n.map(x=>x.toFixed(2)),r.calc.avg.toFixed(2)])];
-  const csv=lines.map(row=>row.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(",")).join("\n");
-  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`calificaciones_${$("year").value}_periodo_${$("period").value}.csv`;a.click();URL.revokeObjectURL(a.href);
+
+$("download").onclick = () => {
+  if (!rows.length) {
+    $("message").textContent = "Primero procesa los datos.";
+    return;
+  }
+
+  const head = [
+    "Estudiante", "Grado", "Materia", "Período",
+    "Valores originales", "Promedio B",
+    "Número 1", "Número 2", "Número 3", "Número 4",
+    "Promedio final"
+  ];
+
+  const lines = [
+    head,
+    ...rows.map(r => [
+      r.name, r.grade, r.subject, r.period,
+      r.source.join(" / "),
+      r.calc.b.toFixed(2),
+      ...r.calc.n.map(x => x.toFixed(2)),
+      r.calc.avg.toFixed(2)
+    ])
+  ];
+
+  const csv = lines.map(row =>
+    row.map(x => `"${String(x).replace(/"/g, '""')}"`).join(",")
+  ).join("\n");
+
+  const blob = new Blob(["\ufeff" + csv], {
+    type: "text/csv;charset=utf-8"
+  });
+
+  const a = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+
+  a.href = url;
+  a.download = `calificaciones_${$("year").value}_periodo_${$("period").value}.csv`;
+  a.click();
+
+  URL.revokeObjectURL(url);
 };
-function esc(x){return String(x).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));}
-async function initAuth(){
-  const {data:{session}} = await getSession();
-  if(!session){ $("login").style.display="block"; $("app").style.display="none"; return; }
-  const me = await apiFetch(API+"/api/me");
-  if(!me.ok){ await signOut(); $("login").style.display="block"; return; }
-  const profile = await me.json();
-  $("login").style.display="none"; $("app").style.display="block";
-  $("userInfo").textContent = `${profile.profile.full_name} · ${profile.profile.role}`;
-  if(profile.profile.role === "profesor") $("teacher").value = profile.profile.full_name;
-  loadConfig();
+
+function esc(x) {
+  return String(x ?? "").replace(/[&<>"]/g, m => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;"
+  }[m]));
 }
-$("loginBtn").onclick=async()=>{ const r=await signIn($("email").value.trim(),$("password").value); if(r.error){$("loginMsg").textContent=r.error.message;return;} initAuth(); };
-$("logout").onclick=async()=>{await signOut();location.reload();};
+
+async function initAuth() {
+  try {
+    const { data: { session } } = await getSession();
+
+    if (!session) {
+      $("login").style.display = "block";
+      $("app").style.display = "none";
+      return;
+    }
+
+    const me = await apiFetch(API + "/api/me");
+
+    if (!me.ok) {
+      $("loginMsg").textContent =
+        "La sesión existe, pero el backend no reconoce el perfil. Falta completar el registro del perfil.";
+      $("login").style.display = "block";
+      $("app").style.display = "none";
+      return;
+    }
+
+    const profile = await me.json();
+
+    $("login").style.display = "none";
+    $("app").style.display = "block";
+
+    $("userInfo").textContent =
+      `${profile.profile.full_name} · ${profile.profile.role}`;
+
+    if (profile.profile.role === "profesor") {
+      $("teacher").value = profile.profile.full_name;
+    }
+
+    await loadConfig();
+  } catch (e) {
+    $("loginMsg").textContent =
+      "No se pudo verificar la sesión. Revisa la configuración.";
+  }
+}
+
+$("loginBtn").onclick = async () => {
+  $("loginMsg").textContent = "Iniciando sesión...";
+
+  const r = await signIn(
+    $("email").value.trim(),
+    $("password").value
+  );
+
+  if (r.error) {
+    $("loginMsg").textContent = r.error.message;
+    return;
+  }
+
+  await initAuth();
+};
+
+$("registerBtn").onclick = async () => {
+  const fullName = $("fullName").value.trim();
+  const email = $("email").value.trim();
+  const password = $("password").value;
+
+  if (fullName.length < 2) {
+    $("loginMsg").textContent = "Escribe tu nombre completo.";
+    return;
+  }
+
+  if (!email) {
+    $("loginMsg").textContent = "Escribe tu correo electrónico.";
+    return;
+  }
+
+  if (password.length < 8) {
+    $("loginMsg").textContent =
+      "La contraseña debe tener al menos 8 caracteres.";
+    return;
+  }
+
+  $("registerBtn").disabled = true;
+  $("loginMsg").textContent = "Creando cuenta...";
+
+  try {
+    const result = await signUp(fullName, email, password);
+
+    if (result.error) {
+      $("loginMsg").textContent = result.error.message;
+      return;
+    }
+
+    if (!result.data.session) {
+      $("loginMsg").textContent =
+        "La cuenta fue solicitada. Revisa tu correo para confirmar el registro. Después debemos completar el perfil en el backend.";
+      setAuthMode("login");
+      return;
+    }
+
+    // Esta ruta debe implementarse en server.js.
+    // El servidor debe validar el token y asignar siempre el rol profesor.
+    const response = await apiFetch(API + "/api/register-profile", {
+      method: "POST",
+      body: JSON.stringify({ full_name: fullName })
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+
+      $("loginMsg").textContent =
+        body.error ||
+        "La cuenta se creó, pero falta crear el perfil en app_users. Hay que actualizar server.js.";
+      return;
+    }
+
+    await initAuth();
+  } catch (e) {
+    $("loginMsg").textContent =
+      "No se pudo completar el registro. Revisa la conexión.";
+  } finally {
+    $("registerBtn").disabled = false;
+  }
+};
+
+$("logout").onclick = async () => {
+  await signOut();
+  location.reload();
+};
+
 initAuth();
 </script>
 </body>
