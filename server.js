@@ -4,11 +4,16 @@ import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
-
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
 const app = express();
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
 
 // Configuración de Supabase.
 // Acepta la clave nueva SUPABASE_SECRET_KEY
