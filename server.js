@@ -1,63 +1,91 @@
 
-const SUPABASE_URL = "https://TU-PROYECTO.supabase.co";
-const SUPABASE_ANON_KEY = "TU_SUPABASE_ANON_O_PUBLISHABLE_KEY";
+import express from "express";
+import cors from "cors";
+import { createClient } from "@supabase/supabase-js";
 
-if (!window.supabase) {
-  throw new Error("No se cargó la librería de Supabase.");
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY =
+  process.env.SUPABASE_PUBLISHABLE_KEY;
+
+let supabase = null;
+
+if (SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY) {
+  supabase = createClient(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY
+  );
 }
 
-const supabaseClient = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
-);
-
-async function signIn(email, password) {
-  return supabaseClient.auth.signInWithPassword({
-    email,
-    password
+app.get("/", (req, res) => {
+  res.json({
+    ok: true,
+    service: "HIS-APP Gestor de Calificaciones",
+    message: "Servidor funcionando"
   });
-}
+});
 
-async function signUp(fullName, email, password) {
-  return supabaseClient.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name: fullName.trim()
-      }
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: "HIS-APP",
+    supabaseConfigured: Boolean(supabase)
+  });
+});
+
+app.get("/api/auth/session", async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({
+        ok: false,
+        error: "Supabase no está configurado en Render"
+      });
     }
-  });
-}
 
-async function signOut() {
-  return supabaseClient.auth.signOut();
-}
+    const authorization = req.headers.authorization || "";
+    const token = authorization.startsWith("Bearer ")
+      ? authorization.slice(7)
+      : "";
 
-async function getSession() {
-  return supabaseClient.auth.getSession();
-}
+    if (!token) {
+      return res.status(401).json({
+        ok: false,
+        error: "Falta el token de acceso"
+      });
+    }
 
-async function getAccessToken() {
-  const { data, error } = await supabaseClient.auth.getSession();
-  if (error) throw error;
-  return data?.session?.access_token || null;
-}
+    const { data, error } = await supabase.auth.getUser(token);
 
-async function apiFetch(url, options = {}) {
-  const token = await getAccessToken();
-  const headers = new Headers(options.headers || {});
+    if (error || !data.user) {
+      return res.status(401).json({
+        ok: false,
+        error: "Sesión no válida"
+      });
+    }
 
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+    return res.json({
+      ok: true,
+      user: {
+        id: data.user.id,
+        email: data.user.email
+      }
+    });
+  } catch (error) {
+    console.error("Error verificando sesión:", error.message);
+
+    return res.status(500).json({
+      ok: false,
+      error: "Error interno del servidor"
+    });
   }
+});
 
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
+app.listen(PORT, () => {
+  console.log(`HIS-APP ejecutándose en el puerto ${PORT}`);
+});
 
-  return fetch(url, {
-    ...options,
-    headers
-  });
-}
