@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gestor de Calificaciones</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<style>
+body{font-family:Arial,sans-serif;background:#f5f7fb;margin:0;color:#172033}
+main{max-width:1100px;margin:auto;padding:24px}
+.card{background:white;border:1px solid #dfe4ec;border-radius:14px;padding:18px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+input,select,textarea,button{box-sizing:border-box;width:100%;padding:11px;border:1px solid #ccd3df;border-radius:8px;font-size:15px}
+button{cursor:pointer;background:#172033;color:white}
+.secondary{background:white;color:#172033}
+textarea{min-height:140px}
+table{width:100%;border-collapse:collapse;background:white}
+th,td{padding:9px;border-bottom:1px solid #e7ebf1;text-align:left;font-size:13px}
+.status{padding:10px;border-radius:8px;background:#eef3f9;margin-top:10px}
+</style>
+</head>
+<body>
+<main>
+<section id="login" class="card">
+<h1>Gestor de Calificaciones</h1><p>Inicia sesión para continuar.</p>
+<div class="grid"><label>Correo<input id="email" type="email" autocomplete="username"></label><label>Contraseña<input id="password" type="password" autocomplete="current-password"></label></div>
+<button id="loginBtn">Iniciar sesión</button><div id="loginMsg" class="status"></div>
+</section>
+<section id="app" style="display:none">
+<h1>Gestor de Calificaciones</h1><p id="userInfo"></p><button id="logout" class="secondary" style="max-width:180px">Cerrar sesión</button>
+<p>Profesores · Coordinación · Administración</p>
+
+<section class="card">
+<h2>Configuración</h2>
+<div class="grid">
+<label>Año escolar<input id="year" value="2026-2027"></label>
+<label>Grado<select id="grade"></select></label>
+<label>Materia<select id="subject"></select></label>
+<label>Período<select id="period"></select></label>
+<label>Profesor<input id="teacher" placeholder="Nombre del profesor"></label>
+</div>
+</section>
+
+<section class="card">
+<h2>Importar desde Excel</h2>
+<p>Copia las filas desde Excel y pégalas aquí. Formato: <b>Nombre | Valor 1 | Valor 2 | Valor 3</b>.</p>
+<textarea id="paste" placeholder="Juan Pérez&#9;80&#9;85&#9;90&#10;María López&#9;75&#9;82&#9;88"></textarea>
+<div class="grid">
+<button id="process">Procesar y calcular</button>
+<button class="secondary" id="download">Descargar Excel (CSV)</button>
+</div>
+<div id="message" class="status"></div>
+</section>
+
+<section class="card">
+<h2>Resultados</h2>
+<div style="overflow:auto"><table><thead><tr>
+<th>Estudiante</th><th>Grado</th><th>Materia</th><th>Período</th><th>Valores originales</th><th>B</th><th>4 valores</th><th>Promedio final</th>
+</tr></thead><tbody id="results"></tbody></table></div>
+</section>
+</section>
+</main>
+
+<script>
+const API = window.API_URL || "http://localhost:10000";
+let config = {grades:[],subjects:[],settings:null};
+let rows = [];
+
+const $ = id => document.getElementById(id);
+
+async function loadConfig(){
+  try{
+    const r = await apiFetch(API+"/api/config");
+    config = await r.json();
+    $("grade").innerHTML=config.grades.map(g=>`<option value="${g.id}" data-name="${g.name}">${g.name}</option>`).join("");
+    $("subject").innerHTML=config.subjects.map(s=>`<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join("");
+    updatePeriods();
+  }catch(e){
+    $("message").textContent="No se pudo conectar con el backend. Revisa la URL de API.";
+  }
+}
+function updatePeriods(){
+  const count=Number(config.settings?.period_count||3);
+  $("period").innerHTML=Array.from({length:count},(_,i)=>`<option value="${i+1}">Período ${i+1}</option>`).join("");
+}
+function calculate(vals){
+  const v=vals.map(Number).filter(Number.isFinite);
+  if(!v.length) return null;
+  const b=v.reduce((a,x)=>a+x,0)/v.length;
+  let n=[b-6,b-2,b+3,b+5];
+  n[3]+= (b-n.reduce((a,x)=>a+x,0)/4)*4;
+  n=n.map(x=>Math.max(0,Math.min(100,Number(x.toFixed(4)))));
+  return {b, n, avg:n.reduce((a,x)=>a+x,0)/4};
+}
+function render(){
+  $("results").innerHTML=rows.map(r=>`<tr>
+<td>${esc(r.name)}</td><td>${esc(r.grade)}</td><td>${esc(r.subject)}</td><td>${r.period}</td>
+<td>${r.source.join(" / ")}</td><td>${r.calc.b.toFixed(2)}</td>
+<td>${r.calc.n.map(x=>x.toFixed(2)).join(" / ")}</td><td>${r.calc.avg.toFixed(2)}</td>
+</tr>`).join("");
+}
+$("process").onclick=()=>{
+  const lines=$("paste").value.trim().split(/\r?\n/).filter(Boolean);
+  const gradeOpt=$("grade").selectedOptions[0], subjectOpt=$("subject").selectedOptions[0];
+  rows=[];
+  for(const line of lines){
+    const c=line.split(/\t|;/).map(x=>x.trim());
+    if(c.length<2) continue;
+    const name=c[0], vals=c.slice(1).map(Number).filter(Number.isFinite);
+    const calc=calculate(vals);
+    if(calc) rows.push({name,grade:gradeOpt?.dataset.name||"",subject:subjectOpt?.dataset.name||"",period:$("period").value,source:vals,calc});
+  }
+  render();
+  $("message").textContent=`${rows.length} estudiante(s) procesado(s).`;
+};
+$("download").onclick=()=>{
+  if(!rows.length){$("message").textContent="Primero procesa los datos.";return;}
+  const head=["Estudiante","Grado","Materia","Período","Valores originales","Promedio B","Número 1","Número 2","Número 3","Número 4","Promedio final"];
+  const lines=[head,...rows.map(r=>[r.name,r.grade,r.subject,r.period,r.source.join(" / "),r.calc.b.toFixed(2),...r.calc.n.map(x=>x.toFixed(2)),r.calc.avg.toFixed(2)])];
+  const csv=lines.map(row=>row.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`calificaciones_${$("year").value}_periodo_${$("period").value}.csv`;a.click();URL.revokeObjectURL(a.href);
+};
+function esc(x){return String(x).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));}
+async function initAuth(){
+  const {data:{session}} = await getSession();
+  if(!session){ $("login").style.display="block"; $("app").style.display="none"; return; }
+  const me = await apiFetch(API+"/api/me");
+  if(!me.ok){ await signOut(); $("login").style.display="block"; return; }
+  const profile = await me.json();
+  $("login").style.display="none"; $("app").style.display="block";
+  $("userInfo").textContent = `${profile.profile.full_name} · ${profile.profile.role}`;
+  if(profile.profile.role === "profesor") $("teacher").value = profile.profile.full_name;
+  loadConfig();
+}
+$("loginBtn").onclick=async()=>{ const r=await signIn($("email").value.trim(),$("password").value); if(r.error){$("loginMsg").textContent=r.error.message;return;} initAuth(); };
+$("logout").onclick=async()=>{await signOut();location.reload();};
+initAuth();
+</script>
+</body>
+</html>
