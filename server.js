@@ -1,23 +1,31 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
-app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
+
 const app = express();
+const PORT = Number(process.env.PORT) || 10000;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
+
+// Página principal de HIS-APP
 app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// Configuración de Supabase.
-// Acepta la clave nueva SUPABASE_SECRET_KEY
-// o la variable anterior SUPABASE_SERVICE_ROLE_KEY.
+// Archivo de autenticación
+app.get("/auth.js", (_req, res) => {
+  res.sendFile(path.join(__dirname, "auth.js"));
+});
+
+// Configuración de Supabase
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY =
   process.env.SUPABASE_SECRET_KEY ||
@@ -25,16 +33,14 @@ const SUPABASE_KEY =
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error(
-    "ERROR: faltan SUPABASE_URL o una clave de Supabase " +
-    "(SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY)."
+    "ERROR: faltan SUPABASE_URL o SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY"
   );
   process.exit(1);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Verifica que el usuario tenga una sesión válida
-// y un perfil activo en la tabla app_users.
+// Verificar usuario y perfil activo
 async function requireUser(req, res, next) {
   try {
     const auth = req.headers.authorization || "";
@@ -78,7 +84,10 @@ async function requireUser(req, res, next) {
 
     next();
   } catch (error) {
-    console.error("Error de autenticación:", error.message);
+    console.error(
+      "Error de autenticación:",
+      error.message
+    );
 
     return res.status(500).json({
       error: "Error al verificar la sesión"
@@ -86,10 +95,13 @@ async function requireUser(req, res, next) {
   }
 }
 
-// Control de permisos por rol.
+// Control de permisos por rol
 function requireRoles(...roles) {
   return (req, res, next) => {
-    if (!req.profile || !roles.includes(req.profile.role)) {
+    if (
+      !req.profile ||
+      !roles.includes(req.profile.role)
+    ) {
       return res.status(403).json({
         error: "No tienes permiso para esta operación"
       });
@@ -99,16 +111,16 @@ function requireRoles(...roles) {
   };
 }
 
-// Comprobación de salud del servidor.
+// Comprobar que el servidor está funcionando
 app.get("/health", (_req, res) => {
   res.json({
     ok: true,
     service: "gestor-calificaciones-api",
-    version: "1.0.1"
+    version: "1.0.2"
   });
 });
 
-// Devuelve los grados, materias y configuración académica.
+// Configuración académica
 app.get("/api/config", requireUser, async (_req, res) => {
   try {
     const [
@@ -134,7 +146,11 @@ app.get("/api/config", requireUser, async (_req, res) => {
         .limit(1)
     ]);
 
-    if (gradesError || subjectsError || settingsError) {
+    if (
+      gradesError ||
+      subjectsError ||
+      settingsError
+    ) {
       console.error(
         "Error al cargar configuración:",
         gradesError?.message,
@@ -153,7 +169,10 @@ app.get("/api/config", requireUser, async (_req, res) => {
       settings: settings?.[0] || null
     });
   } catch (error) {
-    console.error("Error en /api/config:", error.message);
+    console.error(
+      "Error en /api/config:",
+      error.message
+    );
 
     return res.status(500).json({
       error: "Error interno al cargar la configuración"
@@ -161,7 +180,7 @@ app.get("/api/config", requireUser, async (_req, res) => {
   }
 });
 
-// Crea un resultado académico.
+// Guardar un resultado académico
 app.post("/api/results", requireUser, async (req, res) => {
   try {
     const {
@@ -225,8 +244,7 @@ app.post("/api/results", requireUser, async (req, res) => {
       values.reduce((sum, value) => sum + value, 0) /
       values.length;
 
-    // Genera cuatro valores alrededor del promedio.
-    // Se mantienen dentro del rango de 0 a 100.
+    // Generar cuatro valores alrededor del promedio
     let generated = [
       average - 6,
       average - 2,
@@ -234,7 +252,6 @@ app.post("/api/results", requireUser, async (req, res) => {
       average + 5
     ];
 
-    // Ajuste para centrar los valores en el promedio.
     const generatedAverage =
       generated.reduce((sum, value) => sum + value, 0) /
       generated.length;
@@ -267,7 +284,9 @@ app.post("/api/results", requireUser, async (req, res) => {
       source_values: values,
       average_b: Number(average.toFixed(4)),
       generated_values: generated,
-      generated_average: Number(finalAverage.toFixed(4)),
+      generated_average: Number(
+        finalAverage.toFixed(4)
+      ),
       status: "draft"
     };
 
@@ -278,7 +297,10 @@ app.post("/api/results", requireUser, async (req, res) => {
       .single();
 
     if (error) {
-      console.error("Error al guardar resultado:", error.message);
+      console.error(
+        "Error al guardar resultado:",
+        error.message
+      );
 
       return res.status(500).json({
         error: "No se pudo guardar el resultado"
@@ -287,7 +309,10 @@ app.post("/api/results", requireUser, async (req, res) => {
 
     return res.status(201).json(data);
   } catch (error) {
-    console.error("Error en POST /api/results:", error.message);
+    console.error(
+      "Error en POST /api/results:",
+      error.message
+    );
 
     return res.status(500).json({
       error: "Error interno al procesar el resultado"
@@ -295,7 +320,7 @@ app.post("/api/results", requireUser, async (req, res) => {
   }
 });
 
-// Consulta resultados académicos.
+// Consultar resultados académicos
 app.get("/api/results", requireUser, async (req, res) => {
   try {
     let query = supabase
@@ -321,13 +346,19 @@ app.get("/api/results", requireUser, async (req, res) => {
     }
 
     if (req.profile.role === "profesor") {
-      query = query.eq("teacher_id", req.profile.id);
+      query = query.eq(
+        "teacher_id",
+        req.profile.id
+      );
     }
 
     const { data, error } = await query.limit(5000);
 
     if (error) {
-      console.error("Error al consultar resultados:", error.message);
+      console.error(
+        "Error al consultar resultados:",
+        error.message
+      );
 
       return res.status(500).json({
         error: "No se pudieron consultar los resultados"
@@ -336,16 +367,18 @@ app.get("/api/results", requireUser, async (req, res) => {
 
     return res.json(data);
   } catch (error) {
-    console.error("Error en GET /api/results:", error.message);
+    console.error(
+      "Error en GET /api/results:",
+      error.message
+    );
 
     return res.status(500).json({
-      error: "Error interno al consultar resultados"
+      error: "Error interno al consultar los resultados"
     });
   }
 });
 
-// Cambia el estado de un resultado.
-// Solo administradores y coordinación pueden hacerlo.
+// Cambiar el estado de un resultado
 app.patch(
   "/api/results/:id/status",
   requireUser,
@@ -381,7 +414,10 @@ app.patch(
         .single();
 
       if (error) {
-        console.error("Error al actualizar estado:", error.message);
+        console.error(
+          "Error al actualizar estado:",
+          error.message
+        );
 
         return res.status(500).json({
           error: "No se pudo actualizar el estado"
@@ -390,7 +426,10 @@ app.patch(
 
       return res.json(data);
     } catch (error) {
-      console.error("Error en PATCH /api/results:", error.message);
+      console.error(
+        "Error en PATCH /api/results:",
+        error.message
+      );
 
       return res.status(500).json({
         error: "Error interno al actualizar el resultado"
@@ -399,7 +438,7 @@ app.patch(
   }
 );
 
-// Devuelve la sesión y el perfil del usuario actual.
+// Obtener usuario y perfil actuales
 app.get("/api/me", requireUser, (req, res) => {
   res.json({
     user: req.authUser,
@@ -407,9 +446,9 @@ app.get("/api/me", requireUser, (req, res) => {
   });
 });
 
-// Arranque del servidor.
-const PORT = Number(process.env.PORT) || 10000;
-
+// Iniciar servidor
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Gestor de Calificaciones API iniciado en puerto ${PORT}`);
+  console.log(
+    `Gestor de Calificaciones API iniciado en puerto ${PORT}`
+  );
 });
