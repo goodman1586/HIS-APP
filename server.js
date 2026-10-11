@@ -35,7 +35,8 @@ if (SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY) {
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"), (err) => {
     if (err) {
-      console.error("No se pudo cargar index.html:", err.message);
+      console.error("Error cargando index.html:", err.message);
+
       if (!res.headersSent) {
         res.status(500).send(
           "No se encontró index.html. Comprueba que esté en la raíz del proyecto."
@@ -45,7 +46,7 @@ app.get("/", (req, res) => {
   });
 });
 
-// Archivo JavaScript del inicio de sesión
+// Archivo JavaScript de autenticación
 app.get("/auth.js", (req, res) => {
   res.sendFile(path.join(__dirname, "auth.js"), (err) => {
     if (err && !res.headersSent) {
@@ -69,7 +70,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Verificar sesión del usuario
+// Verificación de sesión
 app.get("/api/auth/session", async (req, res) => {
   try {
     if (!supabase) {
@@ -80,6 +81,7 @@ app.get("/api/auth/session", async (req, res) => {
     }
 
     const authorization = req.headers.authorization || "";
+
     const token = authorization.startsWith("Bearer ")
       ? authorization.slice(7)
       : "";
@@ -91,7 +93,8 @@ app.get("/api/auth/session", async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase.auth.getUser(token);
+    const { data, error } =
+      await supabase.auth.getUser(token);
 
     if (error || !data.user) {
       return res.status(401).json({
