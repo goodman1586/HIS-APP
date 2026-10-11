@@ -1,14 +1,19 @@
-
 import express from "express";
 import cors from "cors";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 app.use(cors());
 app.use(express.json());
 
+// Configuración de Supabase
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY =
   process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -20,30 +25,57 @@ if (SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY) {
     SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY
   );
+} else {
+  console.error(
+    "Faltan SUPABASE_URL o SUPABASE_PUBLISHABLE_KEY en Render."
+  );
 }
 
+// Página principal
 app.get("/", (req, res) => {
-  res.json({
-    ok: true,
-    service: "HIS-APP Gestor de Calificaciones",
-    message: "Servidor funcionando"
+  res.sendFile(path.join(__dirname, "index.html"), (err) => {
+    if (err) {
+      console.error("No se pudo cargar index.html:", err.message);
+      if (!res.headersSent) {
+        res.status(500).send(
+          "No se encontró index.html. Comprueba que esté en la raíz del proyecto."
+        );
+      }
+    }
   });
 });
 
+// Archivo JavaScript del inicio de sesión
+app.get("/auth.js", (req, res) => {
+  res.sendFile(path.join(__dirname, "auth.js"), (err) => {
+    if (err && !res.headersSent) {
+      res.status(404).send("No se encontró auth.js.");
+    }
+  });
+});
+
+// Icono del sitio
+app.get("/favicon.ico", (req, res) => {
+  res.status(204).end();
+});
+
+// Estado del servidor
 app.get("/health", (req, res) => {
   res.status(200).json({
     ok: true,
-    service: "HIS-APP",
+    service: "HIS-APP Gestor de Calificaciones",
+    version: "1.0.2",
     supabaseConfigured: Boolean(supabase)
   });
 });
 
+// Verificar sesión del usuario
 app.get("/api/auth/session", async (req, res) => {
   try {
     if (!supabase) {
       return res.status(503).json({
         ok: false,
-        error: "Supabase no está configurado en Render"
+        error: "Supabase no está configurado en Render."
       });
     }
 
@@ -55,7 +87,7 @@ app.get("/api/auth/session", async (req, res) => {
     if (!token) {
       return res.status(401).json({
         ok: false,
-        error: "Falta el token de acceso"
+        error: "Falta el token de acceso."
       });
     }
 
@@ -64,7 +96,7 @@ app.get("/api/auth/session", async (req, res) => {
     if (error || !data.user) {
       return res.status(401).json({
         ok: false,
-        error: "Sesión no válida"
+        error: "Sesión no válida."
       });
     }
 
@@ -76,16 +108,22 @@ app.get("/api/auth/session", async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error verificando sesión:", error.message);
+    console.error(
+      "Error verificando sesión:",
+      error.message
+    );
 
     return res.status(500).json({
       ok: false,
-      error: "Error interno del servidor"
+      error: "Error interno del servidor."
     });
   }
 });
 
+// Iniciar servidor
 app.listen(PORT, () => {
-  console.log(`HIS-APP ejecutándose en el puerto ${PORT}`);
+  console.log(
+    `HIS-APP Gestor de Calificaciones ejecutándose en el puerto ${PORT}`
+  );
 });
-
+```
